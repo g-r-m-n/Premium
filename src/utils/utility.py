@@ -60,16 +60,20 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
         n_estimators = 20 
         params = {'subsample': 0.5, 'num_leaves': 20, 'max_depth': 5, 'learning_rate': 0.3} #'boosting_type' : 'dart'}
         if model_type == 'rf':
-                params =  {'num_leaves': 30, 'max_depth': 5, 'learning_rate': 0.05, 'boosting_type' : 'rf', 'bagging_freq' : 1, 'bagging_fraction' : 0.8  } 
+                params =  {'num_leaves': 30, 'max_depth': 5, 'feature_fraction' : 0.8, 'learning_rate': 1, 'boosting_type' : 'rf', 'bagging_freq' : 1, 'subsample_freq' : 1, 'bagging_fraction' : 0.8 } 
                 # {'subsample': 0.5, 'num_leaves': 31, 'max_depth': 5, 'learning_rate': 0.01}
         clf = LGBMRegressor( random_state=42, n_estimators=n_estimators, **params)
         
         tuning_dict = { 
-                     'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3,], # 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
                                 'max_depth': [3, 5, 10, -1], #'max_depth': [3, 5, 15, 20, 30],
                                 'num_leaves': [5, 10, 20, 30], #'num_leaves': [5, 10, 20, 30],
                                 #'subsample': [0.3, 0.5, 1] #'subsample': [0.1, 0.2, 0.8, 1]                  
             }
+        if model_type in ['lgbm']:
+            tuning_dict = tuning_dict | {'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3,],} # 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
+        if model_type in ['rf']:
+            tuning_dict = tuning_dict | {'feature_fraction' : [0.1, 0.2, 0.5, 0.8, 1]   }
+
         fit_args = {'eval_metric' : ['neg_mean_absolute_error','neg_root_mean_squared_error'], 
                }  
         if not ((X_val is None) or (y_val is None)) :
