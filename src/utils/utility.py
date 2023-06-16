@@ -56,12 +56,15 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
     fit_args = {}
 
     # Use an LGBM or RF ML model:    
-    if model_type in ['lgbm','rf']:
+    if model_type in ['lgbm','rf','lgbm_tw']:
         n_estimators = 20 
-        params = {'subsample': 0.5, 'num_leaves': 20, 'max_depth': 5, 'learning_rate': 0.3} #'boosting_type' : 'dart'}
+        params = {'subsample': 0.5, 'num_leaves': 30, 'max_depth': 10, 'learning_rate': 0.3} #'boosting_type' : 'dart'}
         if model_type == 'rf':
-                params =  {'num_leaves': 30, 'max_depth': 5, 'feature_fraction' : 0.8, 'learning_rate': 1, 'boosting_type' : 'rf', 'bagging_freq' : 1, 'subsample_freq' : 1, 'bagging_fraction' : 0.8 } 
-                # {'subsample': 0.5, 'num_leaves': 31, 'max_depth': 5, 'learning_rate': 0.01}
+                params =  {'num_leaves': 20, 'max_depth': 5, 'feature_fraction' : 0.8, 'learning_rate': 1, 'boosting_type' : 'rf', 'bagging_freq' : 1, 'subsample_freq' : 1, 'bagging_fraction' : 0.8 } 
+                # {'subsample': 0.5, 'num_leaves': 31, 'max_depth': 5, 'learning_rate': 0.01}                
+        if model_type == 'lgbm_tw':
+                params =  params  | {'objective': 'tweedie', 'metric': 'tweedie'}     
+
         clf = LGBMRegressor( random_state=42, n_estimators=n_estimators, **params)
         
         tuning_dict = { 
@@ -69,11 +72,13 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
                                 'num_leaves': [5, 10, 20, 30], #'num_leaves': [5, 10, 20, 30],
                                 #'subsample': [0.3, 0.5, 1] #'subsample': [0.1, 0.2, 0.8, 1]                  
             }
-        if model_type in ['lgbm']:
+        if model_type in ['lgbm','lgbm_tw']:
             tuning_dict = tuning_dict | {'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3,],} # 'learning_rate': [0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
         if model_type in ['rf']:
             tuning_dict = tuning_dict | {'feature_fraction' : [0.1, 0.2, 0.5, 0.8, 1]   }
-
+        if model_type in ['lgbm_tw']:
+            tuning_dict = tuning_dict | { 'tweedie_variance_power': [ 1.1, 1.2, 1.5, 1.7, 1.8, 1.9],} # constraints: 1.0 <= tweedie_variance_power < 2.0,  see https://lightgbm.readthedocs.io/en/latest/Parameters.html
+        
         fit_args = {'eval_metric' : ['neg_mean_absolute_error','neg_root_mean_squared_error'], 
                }  
         if not ((X_val is None) or (y_val is None)) :
@@ -98,23 +103,23 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
 
     #create, train and do inference of the model
     if TUNE:
-        # Tune hyperparameters and final model using cv cross-validation with n_iter parameter settings sampled from random search. Random search can cover a larger area of the paramter space with the same number of consider setting compared to e.g. grid search.
+        # Tune hyper-parameters and final model using cv cross-validation with n_iter parameter settings sampled from random search. Random search can cover a larger area of the parameter space with the same number of consider setting compared to e.g. grid search.
         rs = RandomizedSearchCV(clf, tuning_dict, 
             scoring= {'MAE': make_scorer(metrics.mean_absolute_error), 'RMSE':  make_scorer(metrics.mean_squared_error)}, #'f1', 'balanced_accuracy' Overview of scoring parameters: https://scikit-learn.org/stable/modules/model_evaluation.html#scoring-parameter
                                 # default: accuracy_score for classification and sklearn.metrics.r2_score for regression
             refit= 'MAE',
             cv=3, 
             return_train_score=False, 
-            n_iter = 20,
+            n_iter = 40,
             verbose = False,
             random_state = 888
            
         )
-        print("\nTuning hyperparameters ..")
+        print("\nTuning hyper-parameters ..")
         rs.fit(X_train, y_train,  **weights , **fit_args)    
         
-        print("\nTuned hyperparameters :(best score)     ",rs.best_score_)
-        print("\nTuned hyperparameters :(best prameters) ",rs.best_params_)
+        print("\nTuned hyper-parameters :(best score)     ",rs.best_score_)
+        print("\nTuned hyper-parameters :(best parameters) ",rs.best_params_)
         
         model = clf
         clf.set_params(**rs.best_params_)
@@ -147,7 +152,7 @@ def error_statistics(y_true, y_pred, df, PRINT = 0, ADDITIONAL_STATS=0, RND =3, 
     :param y_true: (vector) true values.
     :param y_pred: (vector) predicted values.
     :param ADDITIONAL_STATS: (binary) indicates whether to show additional error statistics.
-    :param RND: (int) indicates the nnumber of digits of the printed error statistics.
+    :param RND: (int) indicates the number of digits of the printed error statistics.
     """
     mean_absolute_error = metrics.mean_absolute_error(y_true, y_pred)
     mse = metrics.mean_squared_error(y_true, y_pred)
@@ -187,7 +192,7 @@ def error_statistics(y_true, y_pred, df, PRINT = 0, ADDITIONAL_STATS=0, RND =3, 
 
 
 def get_split(df1,  y_var = 'Premium', test_size = 0.2, validation_size = 0.1):
-    """function to split the data into traing and test sets"""
+    """function to split the data into training and test sets"""
     X = df1.drop(y_var, axis=1)
     y = df1[y_var]
     
@@ -336,7 +341,7 @@ def lorenz_curve(y_true, y_pred, exposure):
     return cumulated_samples, cumulated_claim_amount
 
 
-def show_lorenz_curves(df, X_val, gbm_model, rf_model, glm_tr):
+def show_lorenz_curves(df, X_val, gbm_model, rf_model, glm_tr, gbm_tw_model):
     """ 
     Show the lorenz curve of the models.
 
@@ -347,6 +352,7 @@ def show_lorenz_curves(df, X_val, gbm_model, rf_model, glm_tr):
         ("GBM", gbm_model.predict_y(X_val)),
         ("RF", rf_model.predict_y(X_val)),
         ("GLM", glm_tr.predict_y(X_val)),
+        ("GBM-TW", gbm_tw_model.predict_y(X_val)),
     ]:
         ordered_samples, cum_claims = lorenz_curve(
             df.loc[X_val.index,"Premium"], y_pred, df.loc[X_val.index,"Exposure"]
