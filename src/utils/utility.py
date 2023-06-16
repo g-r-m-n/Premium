@@ -13,7 +13,7 @@ import sklearn.metrics as metrics
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import TweedieRegressor
 from lightgbm import LGBMRegressor, log_evaluation, early_stopping 
-
+from scipy.stats import   pearsonr
 
 def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, output_folder_model ='', LOAD = 0, X_val = None, y_val = None, Y_TRANSFORM = 'None'):
     """function to tune and train the model"""
@@ -290,9 +290,9 @@ def plot_model_results(trained_model, X_test = None, y_test=  None, PLOT=0, outp
 
         # Saving plot to pdf and png file
         if SAVE_OUTPUT:
-            plt.savefig(output_folder_plots  +title1+'_'+str(i)+'.pdf', dpi=100,bbox_inches="tight")
+            plt.savefig(output_folder_plots  +title1+'_'+'.pdf', dpi=100,bbox_inches="tight")
             #plt.title(title1, fontsize=20)
-            plt.savefig(output_folder_plots  +title1+'_'+str(i)+ '.png', dpi=100,bbox_inches="tight")
+            plt.savefig(output_folder_plots  +title1+'_'+ '.png', dpi=100,bbox_inches="tight")
         plt.show()
 
     #create a dataframe with the variable importances of the model
