@@ -57,7 +57,7 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
 
     # Use an LGBM or RF ML model:    
     if model_type in ['lgbm','rf','lgbm_tw']:
-        n_estimators = 20 
+        n_estimators = 50 
         params = {'subsample': 0.5, 'num_leaves': 30, 'max_depth': 10, 'learning_rate': 0.3} #'boosting_type' : 'dart'}
         if model_type == 'rf':
                 params =  {'num_leaves': 20, 'max_depth': 5, 'feature_fraction' : 0.8, 'learning_rate': 1, 'boosting_type' : 'rf', 'bagging_freq' : 1, 'subsample_freq' : 1, 'bagging_fraction' : 0.8 } 
@@ -68,8 +68,8 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
         clf = LGBMRegressor( random_state=42, n_estimators=n_estimators, **params)
         
         tuning_dict = { 
-                                'max_depth': [3, 5, 10, -1], #'max_depth': [3, 5, 15, 20, 30],
-                                'num_leaves': [5, 10, 20, 30], #'num_leaves': [5, 10, 20, 30],
+                                'max_depth': [3,  10, 15, -1], #'max_depth': [3, 5, 15, 20, 30],
+                                'num_leaves': [5,  20, 30, 40], #'num_leaves': [5, 10, 20, 30],
                                 #'subsample': [0.3, 0.5, 1] #'subsample': [0.1, 0.2, 0.8, 1]                  
             }
         if model_type in ['lgbm','lgbm_tw']:
@@ -108,7 +108,7 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
             scoring= {'MAE': make_scorer(metrics.mean_absolute_error), 'RMSE':  make_scorer(metrics.mean_squared_error)}, #'f1', 'balanced_accuracy' Overview of scoring parameters: https://scikit-learn.org/stable/modules/model_evaluation.html#scoring-parameter
                                 # default: accuracy_score for classification and sklearn.metrics.r2_score for regression
             refit= 'MAE',
-            cv=3, 
+            cv=10, 
             return_train_score=False, 
             n_iter = 40,
             verbose = False,
@@ -125,7 +125,9 @@ def train_model(X_train, y_train, df, model_type = 'tweedie', TUNE = False, outp
         clf.set_params(**rs.best_params_)
     else:
         model = clf
-        print("\nUsed model parameters : ",model.get_params())
+        
+    # show the model parameters used by the model:    
+    print("\nUsed model parameters : ",model.get_params())
 
     # fit the model:
     model.fit(X_train, y_train, **weights )
@@ -191,7 +193,7 @@ def error_statistics(y_true, y_pred, df, PRINT = 0, ADDITIONAL_STATS=0, RND =3, 
 
 
 
-def get_split(df1,  y_var = 'Premium', test_size = 0.2, validation_size = 0.1):
+def get_split(df1,  y_var = 'Premium', test_size = 0.2, validation_size = 0.1, stratify=None):
     """function to split the data into training and test sets"""
     X = df1.drop(y_var, axis=1)
     y = df1[y_var]
@@ -201,7 +203,7 @@ def get_split(df1,  y_var = 'Premium', test_size = 0.2, validation_size = 0.1):
         if not is_numeric_dtype(X.loc[:,i]):
             X[i] = X.loc[:,i].astype("category")        
 
-    X_train, X_test, y_train, y_test = train_test_split( X, y, test_size=test_size+validation_size, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split( X, y, test_size=test_size+validation_size, random_state=42, stratify= stratify)
 
     X_val = None
     y_val = None
